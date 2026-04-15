@@ -36,7 +36,7 @@ async fn login(data: web::Json<UserCredentials>) -> impl Responder {
     HttpResponse::NotFound().body(format!("Invalid login credentials !"))
 }
 
-#[get("get_counter")]
+#[get("/get_counter")]
 async fn get_counter(counter: web::Data<Mutex<i32>>) -> impl Responder {
     let counter = counter.lock().unwrap();
     HttpResponse::Ok().body(format!("Counter : {}", counter))
