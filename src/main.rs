@@ -1,6 +1,9 @@
-use actix_web::{ App, HttpResponse, HttpServer, Responder, get, post, web::{self, Data} };
+use std::path::Path;
+
+use actix_web::{ App, HttpResponse, HttpServer, Responder, get, post, web::{self} };
 use serde::{Deserialize, Serialize};
 use mongodb::{ Client, Collection, bson::{doc, oid::ObjectId} };
+use futures::TryStreamExt;
 
 #[derive(Debug, Serialize,  Deserialize)]
 struct User {
@@ -39,14 +42,58 @@ async fn set_data( db: web::Data<Collection<User>> ,data: web::Json<UserInfo>) -
 
 #[get("/get_users")]
 async fn get_users(db: web::Data<Collection<User>>) -> impl Responder{
-    match db.find_one( doc! {} ).await {
+    match db.find(doc! {}).await {
         Ok(users) => {
-            HttpResponse::Ok().body(format!("User info {:?}", users))
+            let users: Vec<User> = users.try_collect().await.unwrap_or_default();
+            HttpResponse::Ok().json(users)
         },
         Err(e) => {
             HttpResponse::InternalServerError().body(format!("Error: {}", e))
         }
     } 
+}
+
+#[get("/get_user/{id}")]
+async fn get_user( id: web::Path<String>, db: web::Data<Collection<User>> ) -> impl Responder {
+
+    match ObjectId::parse_str(id.into_inner()) {
+        Err(_) => {
+            HttpResponse::BadRequest().body("Invalid id!")
+        },
+        Ok(obj_id) => {
+            match db.find_one(doc! {"_id": obj_id}).await {
+                Ok(user) => {
+                    HttpResponse::Ok().json(user)
+                },
+                Err(e) => {
+                    HttpResponse::NotFound().body("User not found!")
+                }
+            }
+        }
+    }
+
+}
+
+#[post("delete_user/{id}")]
+async fn delete_user( user_id: web::Path<String>, db: web::Data<Collection<User>> ) -> impl Responder {
+
+    match ObjectId::parse_str( user_id.into_inner() ) {
+
+        Err(_) => {
+            HttpResponse::BadRequest().body("Invalid ID!")
+        },
+        Ok(obj_id) => {
+            match db.delete_one(doc! {"_id": obj_id}).await {
+                Err(e) => {
+                    HttpResponse::InternalServerError().body(format!("Something went wrong -> {:?}",e))
+                },
+                Ok(_) => {
+                    HttpResponse::Ok().body(format!("User deleted successfully"))
+                }
+            }
+        }
+
+    }
 }
 
 async fn connect_db() -> Collection<User> {
@@ -67,6 +114,8 @@ async fn main() -> std::io::Result<()> {
             .service(landing)
             .service(set_data)
             .service(get_users)
+            .service(get_user)
+            .service(delete_user)
     })
     .bind(("127.0.0.1",8080))?
     .run()
