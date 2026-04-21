@@ -1,5 +1,5 @@
 use actix_web::{
-    App, Error, HttpMessage, HttpRequest, HttpResponse, HttpServer, Responder, body::{BoxBody, MessageBody}, dev::{ServiceRequest, ServiceResponse}, get, middleware::{Next, from_fn}, post, web::{self, get}
+    App, Error, HttpMessage, HttpRequest, HttpResponse, HttpServer, Responder, body::{BoxBody, MessageBody}, delete, dev::{ServiceRequest, ServiceResponse}, get, middleware::{Next, from_fn}, post, put, web
 };
 use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use mongodb::{
@@ -8,6 +8,7 @@ use mongodb::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct User {
@@ -37,6 +38,12 @@ struct Claims {
     exp: usize,
 }
 
+#[derive(Debug, Deserialize)]
+struct UpdatedUser {
+    username: String,
+    password: String
+}
+
 #[post("/register")]
 async fn register(
     db: web::Data<Collection<User>>,
@@ -61,7 +68,7 @@ async fn register(
     } else {
         match db.insert_one(new_user).await {
             Ok(_) => {
-                let token = generate_token(&user_info.email).await;
+                let token = generate_token(&user_info.email);
                 HttpResponse::Ok().body(format!(
                     "User created successfully!, Your Token -> {}",
                     token
@@ -77,7 +84,7 @@ async fn login(db: web::Data<Collection<User>>, user_data: web::Json<LoginUser>)
     match db.find_one(doc! {"email": user_data.email.clone()}).await {
         Ok(Some(user_info)) => {
             if user_info.password == user_data.password {
-                let token = generate_token(&user_info.email).await;
+                let token = generate_token(&user_info.email);
                 HttpResponse::Ok().json(json!({
                     "user_info": user_info,
                     "token": token
@@ -104,8 +111,7 @@ async fn auth_middleware(
         None => Ok(req.into_response(HttpResponse::Unauthorized().body("Unauthorized!"))),
         Some(header_value) => {
             let token = header_value.replace("Bearer ", "");
-            println!("{}",token);
-            match decode_token(&token).await {
+            match decode_token(&token) {
                 Some(claims) => {
                     req.extensions_mut().insert(claims);
                     next.call(req).await.map(|res| res.map_into_boxed_body())
@@ -139,6 +145,67 @@ async fn profile(db: web::Data<Collection<User>>, req: HttpRequest) -> impl Resp
     }
 }
 
+#[put("/update")]
+async fn update_user(
+    db: web::Data<Collection<User>>, 
+    req: HttpRequest, 
+    user_data: web::Json<UpdatedUser>
+) -> impl Responder{
+    
+    let extension = req.extensions();
+    let claims = extension.get::<Claims>();
+    
+    match claims {
+        Some(claim) => {
+            match db.update_one(
+                    doc! {
+                        "email": &claim.email
+                    },
+                    doc! {
+                        "$set": {
+                            "username": &user_data.username,
+                            "password": &user_data.password
+                    }
+                }
+            ).await {
+                Ok(res) => {
+                    HttpResponse::Ok().json(res)
+                },
+                Err(_) => {
+                    HttpResponse::BadRequest().body("Somethign went wrong!")
+                }
+            }
+        },
+        None => {
+            HttpResponse::Unauthorized().body("No claims found")
+        }
+    }
+}
+
+#[delete("/delete")]
+async fn delete_user(db: web::Data<Collection<User>>, req: HttpRequest) -> impl Responder {
+
+    let extension = req.extensions();
+    let claims = extension.get::<Claims>();
+    
+    match claims {
+        Some(claims) => {
+            match db.delete_one(doc! {"email": &claims.email}).await {
+                Ok(res) => {
+                    HttpResponse::Ok().body(format!("User deleted! -> {:?}",res))
+                },
+                Err(_) => {
+                    HttpResponse::BadRequest().body("Somethign went wrong!")
+                }
+            }
+        },
+        None => {
+            HttpResponse::Unauthorized().body("No claims found")
+        }
+    }
+
+}
+
 async fn connect_db() -> Collection<User> {
     let db = Client::with_uri_str("mongodb://localhost:27017")
         .await
@@ -146,10 +213,16 @@ async fn connect_db() -> Collection<User> {
     db.database("mydb").collection::<User>("users")
 }
 
-async fn generate_token(email: &String) -> String {
+fn generate_token(email: &String) -> String {
+
+    let exp = SystemTime::now()
+    .duration_since(UNIX_EPOCH)
+    .unwrap()
+    .as_secs() as usize + (24 * 60 * 60);
+
     let claims = Claims {
         email: email.clone(),
-        exp: 99999,
+        exp: exp,
     };
 
     encode(
@@ -160,7 +233,7 @@ async fn generate_token(email: &String) -> String {
     .unwrap()
 }
 
-async fn decode_token(token: &String) -> Option<Claims> {
+fn decode_token(token: &String) -> Option<Claims> {
     decode::<Claims>(
         token,
         &DecodingKey::from_secret("change_in_production".as_bytes()),
@@ -182,7 +255,9 @@ async fn main() -> std::io::Result<()> {
             .service(
                 web::scope("/user")
                     .wrap(from_fn(auth_middleware))
-                    .service(profile),
+                    .service(profile)
+                    .service(update_user)
+                    .service(delete_user)
             )
     })
     .bind(("127.0.0.1", 8080))?
