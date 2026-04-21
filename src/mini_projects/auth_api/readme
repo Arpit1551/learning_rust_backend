@@ -1,0 +1,166 @@
+# 🦀 Actix Web Auth API
+
+A REST API built with Rust and Actix Web featuring JWT authentication and MongoDB integration.
+
+## Tech Stack
+
+- **Rust** — systems programming language
+- **Actix Web** — fast async web framework
+- **MongoDB** — NoSQL database
+- **JWT (jsonwebtoken)** — authentication tokens
+- **Serde** — JSON serialization/deserialization
+
+## Features
+
+- User registration with duplicate email check
+- User login with JWT token generation
+- Protected routes via JWT middleware
+- View profile
+- Update username and password
+- Delete account
+
+## Project Structure
+
+```
+src/
+  main.rs       — server setup, routes, handlers, middleware
+```
+
+## API Endpoints
+
+### Auth Routes (`/auth`)
+
+| Method | Endpoint         | Description              | Auth Required |
+|--------|------------------|--------------------------|---------------|
+| POST   | /auth/register   | Register a new user      | ❌            |
+| POST   | /auth/login      | Login and get JWT token  | ❌            |
+
+### User Routes (`/user`)
+
+| Method | Endpoint       | Description          | Auth Required |
+|--------|----------------|----------------------|---------------|
+| GET    | /user/profile  | Get current user     | ✅            |
+| PUT    | /user/update   | Update user info     | ✅            |
+| DELETE | /user/delete   | Delete account       | ✅            |
+
+## Getting Started
+
+### Prerequisites
+
+- Rust installed → [rustup.rs](https://rustup.rs)
+- MongoDB running locally on port `27017`
+
+### Installation
+
+```bash
+# Clone the repo
+git clone <your-repo-url>
+cd <your-repo>
+
+# Run the server
+cargo run
+```
+
+Server starts at `http://127.0.0.1:8080`
+
+## Usage
+
+### Register a new user
+
+```bash
+curl -X POST http://127.0.0.1:8080/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "Arpit",
+    "email": "arpit@example.com",
+    "password": "123456"
+  }'
+```
+
+### Login
+
+```bash
+curl -X POST http://127.0.0.1:8080/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "arpit@example.com",
+    "password": "123456"
+  }'
+```
+
+Response:
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiJ9....",
+  "user_info": {
+    "username": "Arpit",
+    "email": "arpit@example.com"
+  }
+}
+```
+
+### Access protected route
+
+```bash
+curl http://127.0.0.1:8080/user/profile \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...."
+```
+
+### Update user
+
+```bash
+curl -X PUT http://127.0.0.1:8080/user/update \
+  -H "Authorization: Bearer <your_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "NewName",
+    "password": "newpassword"
+  }'
+```
+
+### Delete account
+
+```bash
+curl -X DELETE http://127.0.0.1:8080/user/delete \
+  -H "Authorization: Bearer <your_token>"
+```
+
+## How JWT Auth Works
+
+```
+POST /auth/login
+        ↓
+Server verifies credentials
+        ↓
+Server returns JWT token
+        ↓
+Client sends token in every request header
+Authorization: Bearer <token>
+        ↓
+Middleware verifies token
+        ↓
+Valid → handler runs
+Invalid → 401 Unauthorized
+```
+
+## Environment Variables
+
+> ⚠️ Before deploying to production, move these to a `.env` file!
+
+| Variable        | Current Value            | Description          |
+|-----------------|--------------------------|----------------------|
+| JWT_SECRET      | `change_in_production`   | Secret key for JWT   |
+| MONGODB_URI     | `mongodb://localhost:27017` | MongoDB connection |
+
+## Dependencies
+
+```toml
+[dependencies]
+actix-web = "4"
+mongodb = "3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+jsonwebtoken = "9"
+futures = "0.3"
+tokio = { version = "1", features = ["full"] }
+```
