@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use actix_web::{ App, HttpResponse, HttpServer, Responder, get, post, web::{self} };
+use actix_web::{ App, HttpResponse, HttpServer, Responder, get, post, delete, web::{self} };
 use serde::{Deserialize, Serialize};
 use mongodb::{ Client, Collection, bson::{doc, oid::ObjectId} };
 use futures::TryStreamExt;
@@ -74,7 +74,7 @@ async fn get_user( id: web::Path<String>, db: web::Data<Collection<User>> ) -> i
 
 }
 
-#[post("delete_user/{id}")]
+#[delete("delete_user/{id}")]
 async fn delete_user( user_id: web::Path<String>, db: web::Data<Collection<User>> ) -> impl Responder {
 
     match ObjectId::parse_str( user_id.into_inner() ) {
