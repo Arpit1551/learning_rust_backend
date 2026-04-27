@@ -50,3 +50,11 @@ pub async fn login(
         Err(_) => HttpResponse::InternalServerError().body("Something went wrong!"),
     }
 }
+
+pub fn auth_conifg(cfg: &mut web::ServiceConfig) {
+    cfg.service(
+        web::scope("/auth")
+            .service(register)
+            .service(login)
+    );
+}

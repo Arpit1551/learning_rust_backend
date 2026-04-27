@@ -4,6 +4,7 @@ use actix_web::{
     dev::{ServiceRequest, ServiceResponse},
     middleware::Next,
 };
+use actix_web::HttpMessage;
 use crate::utils::jwt::decode_token;
 
 pub async fn auth_middleware(

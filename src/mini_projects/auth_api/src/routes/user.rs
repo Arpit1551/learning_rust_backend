@@ -1,8 +1,9 @@
-use actix_web::{HttpRequest, HttpResponse, Responder, delete, get, put, web};
+use actix_web::{HttpRequest, HttpResponse, Responder, HttpMessage, delete, get, put, web, middleware::from_fn};
 use mongodb::Collection;
 use mongodb::bson::doc;
 use crate::models::user::{UpdatedUser, User};
 use crate::utils::jwt::Claims;
+use crate::middleware::auth::auth_middleware;
 
 #[get("/profile")]
 pub async fn profile(
@@ -66,4 +67,14 @@ pub async fn delete_user(
         }
         None => HttpResponse::Unauthorized().body("No claims found!"),
     }
+}
+
+pub fn user_config(cfg: &mut web::ServiceConfig) {
+    cfg.service(
+        web::scope("/user")
+            .wrap(from_fn(auth_middleware))
+                .service(profile)
+                .service(update_user)
+                .service(delete_user)
+    );
 }
