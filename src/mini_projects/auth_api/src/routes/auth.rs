@@ -36,7 +36,10 @@ pub async fn register(
     match db.insert_one(new_user).await {
         Ok(_) => {
             let token = generate_token(&user_info.email);
-            HttpResponse::Ok().body(format!("Registered! Token -> {}", token))
+            HttpResponse::Created().json(serde_json::json!({
+                "message": "Registration successful!",
+                "token": token
+            }))
         }
         Err(_) => HttpResponse::InternalServerError().body("Something went wrong!"),
     }
@@ -47,21 +50,23 @@ pub async fn login(
     db: web::Data<Collection<User>>,
     user_data: web::Json<LoginUser>,
 ) -> impl Responder {
-
     let user = match db.find_one(doc! {"email": &user_data.email}).await {
         Ok(Some(user)) => user,
         Ok(None) => {
             return HttpResponse::NotFound().body("User not found!");
-        },
+        }
         Err(_) => {
             return HttpResponse::InternalServerError().body("Something went wrong!");
-        },
+        }
     };
 
     match verify_password(&user_data.password, &user.password) {
         Ok(true) => {
             let token = generate_token(&user.email);
-            HttpResponse::Ok().body(format!("Login successful! Token -> {}", token))
+            HttpResponse::Ok().json(serde_json::json!({
+                "message": "Login successful!",
+                "token": token
+            }))
         }
         Ok(false) => HttpResponse::Unauthorized().body("Invalid email or password."),
         Err(_) => HttpResponse::BadRequest().body("Wrong password!"),
