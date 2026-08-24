@@ -1,8 +1,8 @@
-use actix_web::{App, HttpResponse, HttpServer, Responder, get, web::Json};
+use actix_web::{App, HttpResponse, HttpServer, Responder, get};
 
 #[get("/")]
 async fn landing() -> impl Responder {
-    HttpResponse::Ok.body(format!("Hello world!"))
+    HttpResponse::Ok().body(format!("Hello world!"))
 }
 
 #[actix_web::main]

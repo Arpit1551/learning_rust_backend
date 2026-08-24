@@ -3,35 +3,50 @@
 // Serialize → Client ko data jaana (outgoing)
 
 use serde::Deserialize;
-use std::sync::Mutex;
-use actix_web::{ App, HttpResponse, HttpServer, Responder, get, post, web };
+use actix_web::{ App, HttpResponse, HttpServer, Responder, get, post, web::{self, to} };
+use dashmap::DashMap;
 
 #[derive(Deserialize)]
 struct TodoInput {
     task: String
 }
 
-#[get("/")]
-async fn get_todos(todos: web::Data<Mutex<Vec<String>>>) -> impl Responder {
-    let todos = todos.lock().unwrap();
-    HttpResponse::Ok().body(format!("Todo -> {:?}", todos))
+#[get("/{usert_id}")]
+async fn get_todos(user_id: web::Path<u32> ,app_sate: web::Data<DashMap<u32, Vec<String>>>) -> impl Responder {
+
+    let user_id  = &user_id.into_inner();
+    let todos = app_sate;
+
+    if !todos.contains_key(user_id){
+        return HttpResponse::Ok().body(format!("The user id {}, Does not have any todo!", user_id));
+    }
+
+    let todos = todos.get(user_id).unwrap();
+
+    HttpResponse::Ok().body(format!("Todo -> {:?}", *todos))
 } 
 
 
-#[post("/add_todo")]
-async fn add_todo(todo: web::Json<TodoInput>, todos: web::Data<Mutex<Vec<String>>>) -> impl Responder {
-    let new_todo = todo.task.clone();
-    let mut todos: std::sync::MutexGuard<'_, Vec<String>> = todos.lock().unwrap();
-    todos.push(new_todo);
+#[post("/add_todo/{user_id}")]
+async fn add_todo(
+    user_id: web::Path<u32>,
+     todo: web::Json<TodoInput>,
+      app_state: web::Data<DashMap<u32, Vec<String>>>
+    ) -> impl Responder {
 
-    HttpResponse::Ok().body(format!(" The list of todos are -> {:?}",todos))
+    let user_id = user_id.into_inner();
+    let todo = todo.into_inner().task;
+    app_state.entry(user_id).or_default().push(todo);
+
+    HttpResponse::Ok().body("Your todos are updated!")
 }
 
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()>{
-    let todos = web::Data::new(Mutex::new(vec![] as Vec<String>));
 
+    let todos = web::Data::new(DashMap::<u32, Vec<String>>::new());
+    
     HttpServer::new( move || {
         App::new()
             .app_data(todos.clone())

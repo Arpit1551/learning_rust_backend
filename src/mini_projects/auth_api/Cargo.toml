@@ -15,3 +15,5 @@ validator = { version = "0.18", features = ["derive"] }
 rand_core = { version = "0.6", features = ["getrandom"] }
 actix-cors = "0.7"
 actix-governor = "0.7"
+actix-multipart = "0.7"
+sanitize-filename = "0.5"
