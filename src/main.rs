@@ -31,7 +31,3 @@
 //     Ok(res)
 // }
 
-// Making a todo list app
-// Deserialize → Client se data aana (incoming)
-// Serialize → Client ko data jaana (outgoing)
-

@@ -52,7 +52,5 @@ fn main() {
         let mut msg_buffer = [0u8; 1024];
         stream.read(&mut msg_buffer).unwrap();
         println!("{:?}", &msg_buffer[..11]);
-
-
     }
 }
